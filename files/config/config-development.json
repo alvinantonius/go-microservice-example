@@ -1,0 +1,12 @@
+{
+	"database": {
+		"main" : {
+			"master" : "host=localhost user=postgres password='postgres' dbname=appdb sslmode=disable",
+			"slave" : "host=localhost user=postgres password='postgres' dbname=appdb sslmode=disable"
+		}
+	},
+	"redis" : {
+		"cache" : "localhost:6379"
+	},
+	"port" : ":8080"
+}

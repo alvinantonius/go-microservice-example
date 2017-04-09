@@ -1,0 +1,12 @@
+{
+	"database": {
+		"main" : {
+			"master" : "host=your.prod_master.database user=prod_user password='yourpassword' dbname=appdb sslmode=disable",
+			"slave" : "host=your.prod_slave.database user=prod_user password='yourpassword' dbname=appdb sslmode=disable"
+		}
+	},
+	"redis" : {
+		"cache" : "prod.redis.server:6379"
+	},
+	"port" : "8080"
+}
