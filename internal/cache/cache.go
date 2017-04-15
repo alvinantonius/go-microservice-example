@@ -11,6 +11,8 @@ var connections map[string]*redis.Client
 // ConnectRedis for initiate connection to redis server, and store it as private global variable
 func ConnectRedis(config map[string]string) {
 
+	connections = make(map[string]*redis.Client)
+
 	for name, addr := range config {
 		conn := redis.NewClient(&redis.Options{
 			Addr:     addr,

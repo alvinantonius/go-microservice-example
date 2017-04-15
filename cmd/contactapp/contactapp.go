@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/alvinantonius/go-microservice-sample/cmd/contactapp/handler"
-	// "github.com/alvinantonius/go-microservice-sample/internal/cache"
+	"github.com/alvinantonius/go-microservice-sample/internal/cache"
 	"github.com/alvinantonius/go-microservice-sample/internal/config"
 	"github.com/alvinantonius/go-microservice-sample/internal/contacts"
 	"github.com/alvinantonius/go-microservice-sample/internal/database"
@@ -22,6 +22,9 @@ func init() {
 
 	// open database connection
 	database.ConnectDB(conf.Database)
+
+	// open redis connection
+	cache.ConnectRedis(conf.Redis)
 }
 
 func main() {
@@ -34,9 +37,6 @@ func main() {
 	// why i use InitContacts instead of init() ?
 	// i'll explain later
 	contacts.New()
-
-	// open redis connection
-	// cache.ConnectRedis(conf.Redis)
 
 	// router obj
 	router := httprouter.New()

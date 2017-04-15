@@ -8,11 +8,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-var pkgcontact interface {
-	Get(int64) (contacts.Contact, error)
-	List(int64, int64) ([]contacts.ContactData, error)
-	Create(contacts.ContactData) (contacts.Contact, error)
-}
+var pkgcontact contacts.PkgContacts
 
 // Init handler
 func Init() {
