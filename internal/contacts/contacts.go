@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"reflect"
+	"regexp"
 	"strconv"
 
 	"github.com/alvinantonius/go-microservice-sample/internal/cache"
@@ -56,6 +58,8 @@ type (
 
 var stmt map[string]*sqlx.Stmt
 
+var phoneRegexp, emailRegexp, nameRegexp *regexp.Regexp
+
 func prepareQueries() error {
 	// if it's already prepared, don't prepare again
 	if len(stmt) == 0 {
@@ -99,10 +103,31 @@ func prepareQueries() error {
 	return nil
 }
 
+func prepareRegex() {
+	if phoneRegexp == nil && nameRegexp == nil && emailRegexp == nil {
+		var err error
+		phoneRegexp, err = regexp.Compile("^[+]{0,1}[0-9]{8,15}$")
+		if err != nil {
+			log.Println(err)
+		}
+
+		nameRegexp, err = regexp.Compile("^[\\w ]{3,}$")
+		if err != nil {
+			log.Println(err)
+		}
+
+		emailRegexp, err = regexp.Compile("^[a-z1-9.-_]{3,}@[a-z1-9-]+([.][a-z1-9-]+){1,}")
+		if err != nil {
+			log.Println(err)
+		}
+	}
+}
+
 // New will return contact struct as Contact interface
 // if this run in test, it will return mocked contact struct
 func New() PkgContacts {
 	prepareQueries()
+	prepareRegex()
 	return &pkgContacts{}
 }
 
@@ -130,6 +155,12 @@ func (pkgc *pkgContacts) Get(contactID int64) (Contact, error) {
 		if err != nil {
 			log.Println("[Get] error get data from query ->", err)
 			return nil, err
+		}
+
+		// if contact id is different, then id is not found
+		// just return nil
+		if cData.ID != contactID {
+			return nil, nil
 		}
 
 		// prepare cache data
@@ -240,10 +271,87 @@ func (pkgc *pkgContacts) List(take, page int64) ([]ContactData, error) {
 
 // Update contact data
 func (c *contact) Update(input ContactData) error {
+
+	data := c.data
+
+	if input.Email != "" {
+		data.Email = input.Email
+	}
+
+	if input.Phone != "" {
+		data.Phone = input.Phone
+	}
+
+	if input.Name != "" {
+		data.Name = input.Name
+	}
+
+	// check if there's any changes
+	if reflect.DeepEqual(data, c.data) {
+		return errors.New("no data is updated")
+	}
+
+	// validate new data
+	if !validateContact(data) {
+		return errors.New("contact data is invalid")
+	}
+
+	// get db conn
+	dbconn, _ := database.Conn("main", "master")
+	tx, _ := dbconn.Beginx()
+	defer tx.Rollback()
+
+	_, err := tx.Exec(`
+		UPDATE
+			contacts
+		SET
+			name = $1,
+			email = $2,
+			phone = $3
+		WHERE id = $4
+	`, data.Name, data.Email, data.Phone, data.ID)
+	if err != nil {
+		return err
+	}
+
+	tx.Commit()
+
+	// delete cache data
+	cacheConn, _ := cache.Conn("main")
+	cacheConn.Del(c.cacheKey)
+
+	// update struct data
+	c.data = data
+
 	return nil
 }
 
 func (c *contact) Delete() error {
+
+	// get db conn
+	dbconn, _ := database.Conn("main", "master")
+	tx, _ := dbconn.Beginx()
+	defer tx.Rollback()
+
+	_, err := tx.Exec(`
+		DELETE FROM
+		contacts
+		WHERE id = $1
+		LIMIT 1
+	`, c.data.ID)
+	if err != nil {
+		return err
+	}
+
+	tx.Commit()
+
+	// delete cache data
+	cacheConn, _ := cache.Conn("main")
+	cacheConn.Del(c.cacheKey)
+
+	// destroy obj
+	c = nil
+
 	return nil
 }
 
@@ -252,6 +360,18 @@ func (c *contact) Data() ContactData {
 }
 
 func validateContact(input ContactData) bool {
+	if !phoneRegexp.MatchString(input.Phone) {
+		return false
+	}
+
+	if !emailRegexp.MatchString(input.Email) {
+		return false
+	}
+
+	if !nameRegexp.MatchString(input.Name) {
+		return false
+	}
+
 	return true
 }
 

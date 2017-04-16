@@ -264,3 +264,106 @@ func TestList(t *testing.T) {
 		t.Errorf("there were unfulfilled expections: %s", err)
 	}
 }
+
+func TestData(t *testing.T) {
+	cObj := &contact{data: ContactData{ID: 1, Name: "user1", Email: "user1@email.com", Phone: "+628123456789"}, cacheKey: "contact:1"}
+	data := cObj.Data()
+	if !reflect.DeepEqual(data, cObj.data) {
+		t.Errorf("[TestData] got %v | expect %v", data, cObj.data)
+	}
+}
+
+func TestUpdate(t *testing.T) {
+	cObj := &contact{data: ContactData{ID: 1, Name: "user1", Email: "user1@email.com", Phone: "+628123456789"}, cacheKey: "contact:1"}
+
+	testCase := []struct {
+		Cobj        Contact
+		Input       ContactData
+		ExpectError bool
+		ExpectQuery bool
+		QueryArgs   ContactData
+	}{
+		{
+			cObj,
+			ContactData{Name: "NewUser1"},
+			false,
+			true,
+			ContactData{Name: "NewUser1", ID: 1, Email: "user1@email.com", Phone: "+628123456789"},
+		},
+		{
+			cObj,
+			ContactData{},
+			true,
+			false,
+			ContactData{},
+		},
+	}
+
+	for index, tcase := range testCase {
+
+		if tcase.ExpectQuery {
+			mock.ExpectBegin()
+			mock.ExpectExec("(?i)UPDATE contacts SET (.+) WHERE id (.+)").WithArgs(tcase.QueryArgs.Name, tcase.QueryArgs.Email, tcase.QueryArgs.Phone, tcase.QueryArgs.ID).WillReturnResult(sqlmock.NewResult(0, 1))
+			mock.ExpectCommit()
+		}
+
+		err := cObj.Update(tcase.Input)
+
+		// validate expect error
+		if (err != nil && !tcase.ExpectError) || (err == nil && tcase.ExpectError) {
+			t.Errorf("[TestUpdate] tcase:%v err got %v | expected err!=nil->%v", index, err, tcase.ExpectError)
+		}
+	}
+
+	// we make sure that all expectations were met
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
+}
+
+func TestDelete(t *testing.T) {
+	cObj := &contact{data: ContactData{ID: 1, Name: "user1", Email: "user1@email.com", Phone: "+628123456789"}, cacheKey: "contact:1"}
+
+	mock.ExpectBegin()
+	mock.ExpectExec("(?i)DELETE FROM contacts WHERE id =(.+)").WithArgs(1).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	err := cObj.Delete()
+	if err != nil {
+		t.Errorf("[TestDelete] fail to delete")
+	}
+}
+
+func TestValidate(t *testing.T) {
+	testCase := []struct {
+		Data           ContactData
+		ExpectedResult bool
+	}{
+		{
+			ContactData{Name: "Alvin Antonius", Phone: "+628123456789", Email: "alvin.antonius@gmail.com"},
+			true,
+		},
+		{
+			ContactData{Name: "Alvin Antonius", Phone: "678+9", Email: "alvin.antonius@gma"},
+			false,
+		},
+		{
+			ContactData{Name: "Ad", Phone: "+628123456789", Email: "alvin.antonius@gmail.com"},
+			false,
+		},
+		{
+			ContactData{Name: "sdfkh  23", Phone: "+628123456789", Email: "alvin.antonius@gmail.com"},
+			true,
+		},
+		{
+			ContactData{Name: "", Phone: "", Email: ""},
+			false,
+		},
+	}
+
+	for index, tcase := range testCase {
+		res := validateContact(tcase.Data)
+		if res != tcase.ExpectedResult {
+			t.Errorf("[TestValidate] tcase:%v res got %v | expected %v", index, res, tcase.ExpectedResult)
+		}
+	}
+}
